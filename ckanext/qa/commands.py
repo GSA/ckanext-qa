@@ -4,6 +4,8 @@ import requests
 import urlparse
 import logging
 from pylons import config
+from urllib2 import Request, urlopen, URLError, HTTPError
+import math
 
 import ckan.plugins as p
 
@@ -53,6 +55,67 @@ class QACommand(p.toolkit.CkanCommand):
         # won't get disabled
         self.log = logging.getLogger('ckanext.qa')
 
+        if cmd == 'update':            
+            self.update_resource_rating()
+                
+        elif cmd == 'update_sel': 
+            from ckan import model
+            sql = '''select last_updated::date from task_status order by last_updated desc limit 1;'''
+            q = model.Session.execute(sql)            
+            for row in q:
+               last_updated = str(row['last_updated']) + 'T00:00:000Z'
+            
+            url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&wt=json&indent=true&fl=name"
+            response = self.get_data(url)
+            
+            if (response != 'error'):
+                f = response.read()
+                data = json.loads(f)
+                rows = data.get('response').get('numFound')
+                
+                #self.log.info(rows)
+                start = 0
+                chunk_size = 1000        
+          
+                for x in range(0, int(math.ceil(rows/chunk_size))+1):
+		  
+                    if(x == 0):
+                        start = 0
+                    
+                    response = self.get_data(url + "&rows=" + str(chunk_size) + "&start=" + str(start))
+                    f = response.read()
+                    data = json.loads(f)
+                    results = data.get('response').get('docs')
+                
+                    for x in range(0, len(results)):
+                        #self.log.info(results[x]['name'])
+                        self.args.append(results[x]['name'])            
+                        self.update_resource_rating() 
+                        self.args.pop()            
+             
+        elif cmd == 'clean':
+            self.log.error('Command "%s" not implemented' % (cmd,))
+
+        else:
+            self.log.error('Command "%s" not recognized' % (cmd,))
+
+    def get_data(self, url):
+        req = Request(url)
+        try:
+          response = urlopen(req)
+        except HTTPError as e:
+          print 'The server couldn\'t fulfill the request.'
+          print 'Error code: ', e.code
+          return 'error'
+        except URLError as e:
+          print 'We failed to reach a server.'
+          print 'Reason: ', e.reason
+          return 'error'
+        else:
+          return response        
+                
+    def update_resource_rating(self):               
+        
         from ckan import model
         from ckan.model.types import make_uuid
 
@@ -68,42 +131,35 @@ class QACommand(p.toolkit.CkanCommand):
             'apikey': user.get('apikey'),
             'username': user.get('name'),
         })
+        
+        for package in self._package_list():
+            self.log.info("QA on dataset being added to Celery queue: %s (%d resources)" % 
+                                (package.get('name'), len(package.get('resources', []))))
 
-        if cmd == 'update':
-            for package in self._package_list():
-                self.log.info("QA on dataset being added to Celery queue: %s (%d resources)" % 
-                            (package.get('name'), len(package.get('resources', []))))
+            for resource in package.get('resources', []):
+                resource['package'] = package['name']
+                pkg = model.Package.get(package['id'])
+                resource['is_open'] = pkg.isopen()
+                data = json.dumps(resource) 
+                task_id = make_uuid()
+                task_status = {
+                    'entity_id': resource['id'],
+                    'entity_type': u'resource',
+                    'task_type': u'qa',
+                    'key': u'celery_task_id',
+                    'value': task_id,
+                    'error': u'',
+                    'last_updated': datetime.datetime.now().isoformat()
+                }
+                task_context = {
+                    'model': model,
+                    'user': user.get('name')
+                }
 
-                for resource in package.get('resources', []):
-                    resource['package'] = package['name']
-                    pkg = model.Package.get(package['id'])
-                    resource['is_open'] = pkg.isopen()
-                    data = json.dumps(resource) 
-                    task_id = make_uuid()
-                    task_status = {
-                        'entity_id': resource['id'],
-                        'entity_type': u'resource',
-                        'task_type': u'qa',
-                        'key': u'celery_task_id',
-                        'value': task_id,
-                        'error': u'',
-                        'last_updated': datetime.datetime.now().isoformat()
-                    }
-                    task_context = {
-                        'model': model,
-                        'user': user.get('name')
-                    }
-
-                    p.toolkit.get_action('task_status_update')(task_context, task_status)
-                    #tasks.update.apply_async(args=[context, data], task_id=task_id)
-                    tasks.update(context, data)
-
-        elif cmd == 'clean':
-            self.log.error('Command "%s" not implemented' % (cmd,))
-
-        else:
-            self.log.error('Command "%s" not recognized' % (cmd,))
-
+                p.toolkit.get_action('task_status_update')(task_context, task_status)
+                #tasks.update.apply_async(args=[context, data], task_id=task_id)
+                tasks.update(context, data)
+                
     def make_post(self, url, data):
             headers = {'Content-type': 'application/json',
                        'Accept': 'text/plain'}
