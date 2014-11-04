@@ -72,8 +72,7 @@ class QACommand(p.toolkit.CkanCommand):
                 f = response.read()
                 data = json.loads(f)
                 rows = data.get('response').get('numFound')
-                
-                #self.log.info(rows)
+
                 start = 0
                 chunk_size = 1000        
           
@@ -139,26 +138,27 @@ class QACommand(p.toolkit.CkanCommand):
             for resource in package.get('resources', []):
                 resource['package'] = package['name']
                 pkg = model.Package.get(package['id'])
-                resource['is_open'] = pkg.isopen()
-                data = json.dumps(resource) 
-                task_id = make_uuid()
-                task_status = {
-                    'entity_id': resource['id'],
-                    'entity_type': u'resource',
-                    'task_type': u'qa',
-                    'key': u'celery_task_id',
-                    'value': task_id,
-                    'error': u'',
-                    'last_updated': datetime.datetime.now().isoformat()
-                }
-                task_context = {
-                    'model': model,
-                    'user': user.get('name')
-                }
+                if pkg:
+                  resource['is_open'] = pkg.isopen()
+                  data = json.dumps(resource) 
+                  task_id = make_uuid()
+                  task_status = {
+                      'entity_id': resource['id'],
+                      'entity_type': u'resource',
+                      'task_type': u'qa',
+                      'key': u'celery_task_id',
+                      'value': task_id,
+                      'error': u'',
+                      'last_updated': datetime.datetime.now().isoformat()
+                  }  
+                  task_context = {
+                      'model': model,
+                      'user': user.get('name')
+                  } 
 
-                p.toolkit.get_action('task_status_update')(task_context, task_status)
-                #tasks.update.apply_async(args=[context, data], task_id=task_id)
-                tasks.update(context, data)
+                  p.toolkit.get_action('task_status_update')(task_context, task_status)
+                  #tasks.update.apply_async(args=[context, data], task_id=task_id)
+                  tasks.update(context, data)
                 
     def make_post(self, url, data):
             headers = {'Content-type': 'application/json',

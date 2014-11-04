@@ -156,7 +156,6 @@ def update(context, data):
                  result['openness_score'], result['openness_score_reason'])
         
         task_status_data = _task_status_data(data['id'], result)
-
         api_url = urlparse.urljoin(context['site_url'], 'api/action')
         '''response = requests.post(
             api_url + '/task_status_update_many',
@@ -171,12 +170,11 @@ def update(context, data):
                     "Conthent-Type": "application/json",
                     'Authorization': context['apikey']
                   }
-                 
+             
         req = urllib2.Request(url, params, headers)
         response = urllib2.urlopen(req)
         f = response.read()
-        content = json.loads(f)
-                         
+        content = json.loads(f)                 
         if not content.get('success'):
             err = 'ckan failed to update task_status, error %s' \
                   % content['error']
@@ -242,7 +240,7 @@ def resource_score(context, data):
         score_failure_count = int(json.loads(response)['result'].get('value', '0'))
 
     # no score for resources that don't have an open license
-    if not data.get('is_open'):
+    if not data.get('is_open') and 2 < 1:
         score_reason = 'License not open'
     else:
         try:
@@ -265,6 +263,9 @@ def resource_score(context, data):
             elif format:
                 score = MIME_TYPE_SCORE.get(format, -1)
 
+            if not data.get('is_open'):
+				score = 0
+			
             score_reason = OPENNESS_SCORE_REASON[score]
 
             # negative scores are only useful for getting the reason message,
