@@ -10,11 +10,19 @@ reason - A reason why the dataset doesn't have a rating.
 #}
 <span class="star-rating{% if stars == 0 %} no-stars{% endif %}">
   {%- if stars == 0 -%}
-    {{ reason }}
+     <img class="star" src="{% url_for_static '/images/star_greyscale.png' %}" width="16" height="16" />
+     <img class="star" src="{% url_for_static '/images/star_greyscale.png' %}" width="16" height="16" />            
+     <img class="star" src="{% url_for_static '/images/star_greyscale.png' %}" width="16" height="16" />      
+     <img class="star" src="{% url_for_static '/images/star_greyscale.png' %}" width="16" height="16" />
+     <img class="star" src="{% url_for_static '/images/star_greyscale.png' %}" width="16" height="16" />
   {%- else -%}
     <span class="star-rating-stars">
       {%- for index in range(stars) -%}
         <img class="star" src="{% url_for_static '/images/star.png' %}" width="16" height="16" />
+      {%- endfor -%}
+    
+      {%- for index in range(5-stars) -%}
+        <img class="star" src="{% url_for_static '/images/star_greyscale.png' %}" width="16" height="16" />
       {%- endfor -%}
     </span>
   {%- endif -%}
