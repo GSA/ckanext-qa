@@ -12,9 +12,16 @@ Example:
 #}
 <section class="module-ratings module module-narrow module-shallow">
   <h2 class="module-heading">{{ _('Resource Quality') }}</h2>
-  <p class="module-content">
-    {{ _('Rating') }}: {{ h.qa_stars_rating(stars, reason) }}
-  </p>
+    <p class="module-content">
+        {% for caption in captions %}
+        {% if stars == loop.index %}
+        <span title="{{ stars }}: {{ caption }}"> {{ _('Rating') }}:</span>{{ h.qa_stars_rating(stars, reason) }}
+        {% endif %}
+        {% endfor %}
+        {% if stars == 0 %}
+        <span title="None: Not obtainable "> {{ _('Rating') }}:</span>{{ h.qa_stars_rating(stars, reason) }}
+        {% endif %}
+    </p>
   <p class="rating-info-toggle module-content module-border-top"><a href="#" data-toggle="ratings" data-target=".rating-info-wrapper" data-hide-text="{{ _('Hide rating info') }}">{{ _('About these ratings…') }}</a></p>
   <div class="rating-info-wrapper js-hide module-border-top">
     {{ h.qa_stars_info(stars) }}
