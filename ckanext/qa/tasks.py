@@ -244,8 +244,10 @@ def resource_score(context, data):
         score_reason = 'License not open'
     else:
         try:
-            headers = json.loads(link_checker("{}", json.dumps(data)))
-            ct = headers.get('content-type')
+            #headers = json.loads(link_checker("{}", json.dumps(data)))
+            #ct = headers.get('content-type')
+
+            ct = get_content_type(data['url'])
 
             # ignore charset if exists (just take everything before the ';')
             if ct and ';' in ct:
@@ -295,3 +297,7 @@ def resource_score(context, data):
         'openness_score_reason': score_reason,
         'openness_score_failure_count': score_failure_count,
     }
+
+def get_content_type(url):
+    d = urllib2.urlopen(url)
+    return d.info()['Content-Type']
