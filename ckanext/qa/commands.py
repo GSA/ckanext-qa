@@ -201,9 +201,11 @@ class QACommand(p.toolkit.CkanCommand):
                     return
 
                 print "Currently scanning dataset: " +  response.get('result').get('name') + " with modified date: " + response.get('result').get('metadata_modified')
-                fo = open("/var/log/ckan_qa_date_log.txt", "wb")
-                fo.write( str(response.get('result').get('metadata_modified')).strip());
-                fo.close()
+                
+                if response.get('result').get('metadata_modified') != None:
+                  fo = open("/var/log/ckan_qa_date_log.txt", "wb")
+                  fo.write( str(response.get('result').get('metadata_modified')).strip());
+                  fo.close()
 
                 yield response.get('result')
         else:
