@@ -61,6 +61,7 @@ class QACommand(p.toolkit.CkanCommand):
 
         elif cmd == 'update_sel':
             from ckan import model
+              
             #sql = '''select last_updated::date from task_status order by last_updated desc limit 1;'''
             '''q = model.Session.execute(sql)
             for row in q:
@@ -72,7 +73,7 @@ class QACommand(p.toolkit.CkanCommand):
             else:
                 last_updated = '2012-01-01T00:00:000Z'
 
-            print last_updated
+            print "Last Updated from file: " + last_updated
             url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&sort=metadata_modified+asc&wt=json&indent=true&fl=name"
 
             response = self.get_data(url)
@@ -199,8 +200,9 @@ class QACommand(p.toolkit.CkanCommand):
                     self.log.error(err)
                     return
 
+                print "Currently scanning dataset: " +  response.get('result').get('name') + " with modified date: " + response.get('result').get('metadata_modified')
                 fo = open("/var/log/ckan_qa_date_log.txt", "wb")
-                fo.write( response.get('result').get('metadata_modified'));
+                fo.write( str(response.get('result').get('metadata_modified')).strip());
                 fo.close()
 
                 yield response.get('result')
