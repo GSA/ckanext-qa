@@ -73,8 +73,8 @@ class QACommand(p.toolkit.CkanCommand):
             else:
                 last_updated = '2012-01-01T00:00:000Z'
 
-            print "Last Updated from file: " + last_updated
-            url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&sort=metadata_modified+asc&wt=json&indent=true&fl=name"
+            print "Creation Date from file: " + last_updated
+            url = config.get('solr_url') + "/select?q=metadata_created:[" + last_updated + "%20TO%20NOW]&sort=metadata_created+asc&wt=json&indent=true&fl=name"
 
             response = self.get_data(url)
 
@@ -200,11 +200,11 @@ class QACommand(p.toolkit.CkanCommand):
                     self.log.error(err)
                     return
 
-                print "Currently scanning dataset: " +  response.get('result').get('name') + " with modified date: " + response.get('result').get('metadata_modified')
+                print "Currently scanning dataset: " +  response.get('result').get('name') + " with created date: " + response.get('result').get('metadata_created')
                 
-                if response.get('result').get('metadata_modified') != None:
+                if response.get('result').get('metadata_created') != None:
                   fo = open("/var/log/ckan_qa_date_log.txt", "wb")
-                  fo.write( str(response.get('result').get('metadata_modified')).strip());
+                  fo.write( str(response.get('result').get('metadata_created')).strip());
                   fo.close()
 
                 yield response.get('result')
