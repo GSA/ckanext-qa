@@ -68,13 +68,30 @@ class QACommand(p.toolkit.CkanCommand):
                last_updated = str(row['last_updated']) + 'T00:00:000Z'  '''
 
             if os.path.isfile('/var/log/ckan_qa_date_log.txt') and os.stat("/var/log/ckan_qa_date_log.txt").st_size > 1:
-                file = open('/var/log/ckan_qa_date_log.txt', 'r')
-                last_updated = file.readline() + 'Z'
+                '''file = open('/var/log/ckan_qa_date_log.txt', 'r')
+                last_updated = file.readline() + 'Z' '''
+                
+                i = 0
+                with open('/var/log/ckan_qa_date_log.txt', 'r') as f:
+                  for line in f:
+                     if i == 0:
+                       line = line.replace('\n', '')
+                       if not 'Z' in line:
+                          last_updated = line + 'Z'
+                       else:
+                          last_updated = line 
+                     else:
+                       start = line
+                     
+                     i = i + 1 
             else:
                 last_updated = '2012-01-01T00:00:000Z'
+                start = 0
 
-            print "Creation Date from file: " + last_updated
-            url = config.get('solr_url') + "/select?q=metadata_created:[" + last_updated + "%20TO%20NOW]&sort=metadata_created+asc&wt=json&indent=true&fl=name"
+
+            print "Last Updated from file: " + last_updated
+            url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
+
 
             response = self.get_data(url)
 
@@ -83,23 +100,38 @@ class QACommand(p.toolkit.CkanCommand):
                 data = json.loads(f)
                 rows = data.get('response').get('numFound')
 
-                start = 0
+                #start = 0
                 chunk_size = 1000
+                
+                counter = start
 
                 for x in range(0, int(math.ceil(rows/chunk_size))+1):
 
-                    if(x == 0):
-                        start = 0
+                    '''if(x == 0):
+                        start = 0'''                        
 
+                    print url + "&rows=" + str(chunk_size) + "&start=" + str(start)
                     response = self.get_data(url + "&rows=" + str(chunk_size) + "&start=" + str(start))
                     f = response.read()
                     data = json.loads(f)
                     results = data.get('response').get('docs')
 
-                    for x in range(0, len(results)):
-                        self.args.append(results[x]['name'])
+                    for j in range(0, len(results)):
+                        print "Currently scanning dataset: " +  results[j]['name'] + " with modified date: " + results[j]['metadata_modified']
+                
+                        if results[j]['metadata_modified'] != None:
+                            fo = open("/var/log/ckan_qa_date_log.txt", "wb")
+                            fo.write( str(results[j]['metadata_modified']).strip() + "\n")
+                            fo.write(str(counter - 1))
+                            fo.close()
+                  
+                        self.args.append(results[j]['name'])
                         self.update_resource_rating()
                         self.args.pop()
+                        
+                        counter = int(counter) + 1
+                    
+                    start = start + len(results)
 
         elif cmd == 'clean':
             self.log.error('Command "%s" not implemented' % (cmd,))
@@ -200,12 +232,13 @@ class QACommand(p.toolkit.CkanCommand):
                     self.log.error(err)
                     return
 
-                print "Currently scanning dataset: " +  response.get('result').get('name') + " with created date: " + response.get('result').get('metadata_created')
+                '''print "Currently scanning dataset: " +  response.get('result').get('name') + " with modified date: " + response.get('result').get('metadata_modified')
                 
-                if response.get('result').get('metadata_created') != None:
+                if response.get('result').get('metadata_modified') != None:
                   fo = open("/var/log/ckan_qa_date_log.txt", "wb")
-                  fo.write( str(response.get('result').get('metadata_created')).strip());
-                  fo.close()
+                  fo.write( str(response.get('result').get('metadata_modified')).strip() + "\n" );
+                  fo.write( str(response.get('result').get('id')).strip() )
+                  fo.close() '''
 
                 yield response.get('result')
         else:
@@ -221,7 +254,6 @@ class QACommand(p.toolkit.CkanCommand):
             while(chunk):
                 page = page + limit
                 for p in chunk:
-                    print p
                     yield p
                 url = api_url + '/current_package_list_with_resources'
                 response = self.get_response(url, {'start': page, 'rows': limit})
