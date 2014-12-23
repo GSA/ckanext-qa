@@ -100,15 +100,11 @@ class QACommand(p.toolkit.CkanCommand):
                 data = json.loads(f)
                 rows = data.get('response').get('numFound')
 
-                #start = 0
                 chunk_size = 1000
                 
                 counter = start
 
-                for x in range(0, int(math.ceil(rows/chunk_size))+1):
-
-                    '''if(x == 0):
-                        start = 0'''                        
+                for x in range(0, int(math.ceil(rows/chunk_size))+1):                      
 
                     print url + "&rows=" + str(chunk_size) + "&start=" + str(start)
                     response = self.get_data(url + "&rows=" + str(chunk_size) + "&start=" + str(start))
@@ -122,7 +118,7 @@ class QACommand(p.toolkit.CkanCommand):
                         if results[j]['metadata_modified'] != None:
                             fo = open("/var/log/ckan_qa_date_log.txt", "wb")
                             fo.write( str(results[j]['metadata_modified']).strip() + "\n")
-                            fo.write(str(counter - 1))
+                            fo.write(str(counter))
                             fo.close()
                   
                         self.args.append(results[j]['name'])
@@ -132,6 +128,17 @@ class QACommand(p.toolkit.CkanCommand):
                         counter = int(counter) + 1
                     
                     start = start + len(results)
+                    
+                    
+                i = 0
+                with open('/var/log/ckan_qa_date_log.txt', 'wb') as f:
+                  for line in f:
+                     if i == 0:
+                       continue
+                     else:
+                        fo.write('0')  
+                     
+                     i = i + 1 
 
         elif cmd == 'clean':
             self.log.error('Command "%s" not implemented' % (cmd,))
@@ -231,14 +238,6 @@ class QACommand(p.toolkit.CkanCommand):
                            (id, url, response.get('error')))
                     self.log.error(err)
                     return
-
-                '''print "Currently scanning dataset: " +  response.get('result').get('name') + " with modified date: " + response.get('result').get('metadata_modified')
-                
-                if response.get('result').get('metadata_modified') != None:
-                  fo = open("/var/log/ckan_qa_date_log.txt", "wb")
-                  fo.write( str(response.get('result').get('metadata_modified')).strip() + "\n" );
-                  fo.write( str(response.get('result').get('id')).strip() )
-                  fo.close() '''
 
                 yield response.get('result')
         else:
