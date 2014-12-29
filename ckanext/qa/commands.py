@@ -98,11 +98,13 @@ class QACommand(p.toolkit.CkanCommand):
             if (response != 'error'):
                 f = response.read()
                 data = json.loads(f)
-                rows = data.get('response').get('numFound')
+                rows = int(data.get('response').get('numFound')) - int(start)
 
                 chunk_size = 1000
                 
                 counter = start
+                
+                print rows
 
                 for x in range(0, int(math.ceil(rows/chunk_size))+1):                      
 
@@ -203,7 +205,7 @@ class QACommand(p.toolkit.CkanCommand):
                       'model': model,
                       'user': user.get('name')
                   }
-
+                  self.log.info("Scanning resource having id: " + resource['id'] + " and name: " + resource['name'])
                   p.toolkit.get_action('task_status_update')(task_context, task_status)
                   tasks.update(context, data)
 
