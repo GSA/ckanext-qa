@@ -63,11 +63,7 @@ def _update_task_status(context, data):
     Returns the content of the response.
     """
     api_url = urlparse.urljoin(context['site_url'], 'api/action')
-    '''res = requests.post(
-        api_url + '/task_status_update', json.dumps(data),
-        headers={'Authorization': context['apikey'],
-                 'Content-Type': 'application/json'}
-    )'''
+
 
     url = api_url + '/task_status_update'
     params = '%s=1' % json.dumps({'data': data})
@@ -78,7 +74,7 @@ def _update_task_status(context, data):
                  
     req = urllib2.Request(url, params, headers)
     try:
-        response = urllib2.urlopen(req)
+        response = urllib2.urlopen(req, 120)
     except HTTPError as e:            
       #raise CkanError('The server couldn\'t fulfill the request. Error code: %s'
       #                      % (e.code))
@@ -157,12 +153,7 @@ def update(context, data):
         
         task_status_data = _task_status_data(data['id'], result)
         api_url = urlparse.urljoin(context['site_url'], 'api/action')
-        '''response = requests.post(
-            api_url + '/task_status_update_many',
-            json.dumps({'data': task_status_data}),
-            headers={'Authorization': context['apikey'],
-                     'Content-Type': 'application/json'}
-        )'''
+
         
         url = api_url + '/task_status_update_many'
         params = '%s=1' % json.dumps({'data': task_status_data})
@@ -172,23 +163,22 @@ def update(context, data):
                   }
              
         req = urllib2.Request(url, params, headers)
-        response = urllib2.urlopen(req)
+        response = urllib2.urlopen(req, 120)
         f = response.read()
-        content = json.loads(f)                 
+        content = json.loads(f)
+                       
         if not content.get('success'):
             err = 'ckan failed to update task_status, error %s' \
                   % content['error']
             log.error(err)
-            #raise CkanError(err)
         elif response.getcode() != 200:
             err = 'ckan failed to update task_status, status_code (%s), error %s' \
                   % (response.getcode(), content.get('result').get('results'))
             log.error(err)
-            #raise CkanError(err)
-
-        #return json.dumps(result)
+            
         return json.dumps(content.get('result').get('results'))
     except Exception, e:
+        
         log.error('Exception occurred during QA update: %s: %s', e.__class__.__name__,  unicode(e))
         _update_task_status(context, {
             'entity_id': data['id'],
@@ -199,7 +189,7 @@ def update(context, data):
             'error': '%s: %s' % (e.__class__.__name__,  unicode(e)),
             'last_updated': datetime.datetime.now().isoformat()
         })
-        #raise
+        
 
 
 def resource_score(context, data):
@@ -222,13 +212,6 @@ def resource_score(context, data):
 
     # get openness score failure count for task status table if exists
     api_url = urlparse.urljoin(context['site_url'], 'api/action')
-    '''response = requests.post(
-        api_url + '/task_status_show',
-        json.dumps({'entity_id': data['id'], 'task_type': 'qa',
-                    'key': 'openness_score_failure_count'}),
-        headers={'Authorization': context['apikey'],
-                 'Content-Type': 'application/json'}
-    )'''
   
     args = {'entity_id': data['id'], 'task_type': 'qa',
             'key': 'openness_score_failure_count'}
@@ -299,5 +282,5 @@ def resource_score(context, data):
     }
 
 def get_content_type(url):
-    d = urllib2.urlopen(url)
+    d = urllib2.urlopen(url, 120)
     return d.info()['Content-Type']
