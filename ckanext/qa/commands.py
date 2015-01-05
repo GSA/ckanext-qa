@@ -83,12 +83,12 @@ class QACommand(p.toolkit.CkanCommand):
                      else:
                        start = line
                      
-                     i = i + 1 
+                     i = i + 1
+                f.close()    
             else:
                 last_updated = '2012-01-01T00:00:000Z'
                 start = 0
-
-
+            
             print "Last Updated from file: " + last_updated
             url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
 
@@ -103,8 +103,6 @@ class QACommand(p.toolkit.CkanCommand):
                 chunk_size = 1000
                 
                 counter = start
-                
-                print rows
 
                 for x in range(0, int(math.ceil(rows/chunk_size))+1):                      
 
@@ -120,7 +118,11 @@ class QACommand(p.toolkit.CkanCommand):
                         if results[j]['metadata_modified'] != None:
                             fo = open("/var/log/ckan_qa_date_log.txt", "wb")
                             fo.write( str(results[j]['metadata_modified']).strip() + "\n")
-                            fo.write(str(counter))
+                            
+                            if j == len(results) - 1:
+                               fo.write(0)
+                            else:   
+                               fo.write(str(counter))
                             fo.close()
                   
                         self.args.append(results[j]['name'])
@@ -129,19 +131,20 @@ class QACommand(p.toolkit.CkanCommand):
                         
                         counter = int(counter) + 1
                     
-                    start = start + len(results)
+                    start = int(start) + len(results)
                     
-                    
-                i = 0
+                '''i = 0
                 with open('/var/log/ckan_qa_date_log.txt', 'wb') as f:
                   for line in f:
                      if i == 0:
                        continue
                      else:
-                        fo.write('0')  
+                        f.write('0')  
                      
                      i = i + 1 
-
+                f.close()'''
+                print "All Dataset scanned!!"
+               
         elif cmd == 'clean':
             self.log.error('Command "%s" not implemented' % (cmd,))
 
