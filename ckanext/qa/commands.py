@@ -119,8 +119,8 @@ class QACommand(p.toolkit.CkanCommand):
                             fo = open("/var/log/ckan_qa_date_log.txt", "wb")
                             fo.write( str(results[j]['metadata_modified']).strip() + "\n")
                             
-                            if j == len(results) - 1:
-                               fo.write(0)
+                            if x == int(math.ceil(rows/chunk_size)):
+                               fo.write("0")
                             else:   
                                fo.write(str(counter))
                             fo.close()
