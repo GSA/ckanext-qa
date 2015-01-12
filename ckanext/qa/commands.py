@@ -61,15 +61,8 @@ class QACommand(p.toolkit.CkanCommand):
 
         elif cmd == 'update_sel':
             from ckan import model
-              
-            #sql = '''select last_updated::date from task_status order by last_updated desc limit 1;'''
-            '''q = model.Session.execute(sql)
-            for row in q:
-               last_updated = str(row['last_updated']) + 'T00:00:000Z'  '''
 
             if os.path.isfile('/var/log/ckan_qa_date_log.txt') and os.stat("/var/log/ckan_qa_date_log.txt").st_size > 1:
-                '''file = open('/var/log/ckan_qa_date_log.txt', 'r')
-                last_updated = file.readline() + 'Z' '''
                 
                 i = 0
                 with open('/var/log/ckan_qa_date_log.txt', 'r') as f:
@@ -90,6 +83,8 @@ class QACommand(p.toolkit.CkanCommand):
                 start = 0
             
             print "Last Updated from file: " + last_updated
+            
+            
             url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
 
 
@@ -119,10 +114,10 @@ class QACommand(p.toolkit.CkanCommand):
                             fo = open("/var/log/ckan_qa_date_log.txt", "wb")
                             fo.write( str(results[j]['metadata_modified']).strip() + "\n")
                             
-                            if x == int(math.ceil(rows/chunk_size)):
+                            '''if x == int(math.ceil(rows/chunk_size)):
                                fo.write("0")
-                            else:   
-                               fo.write(str(counter))
+                            else:'''   
+                            fo.write(str(counter))
                             fo.close()
                   
                         self.args.append(results[j]['name'])
@@ -133,16 +128,23 @@ class QACommand(p.toolkit.CkanCommand):
                     
                     start = int(start) + len(results)
                     
-                '''i = 0
-                with open('/var/log/ckan_qa_date_log.txt', 'wb') as f:
+                i = 0
+                with open('/var/log/ckan_qa_date_log.txt', 'r') as f:
                   for line in f:
                      if i == 0:
-                       continue
-                     else:
-                        f.write('0')  
-                     
-                     i = i + 1 
-                f.close()'''
+                       line = line.replace('\n', '')
+                       if not 'Z' in line:
+                          last_updated = line + 'Z'
+                       else:
+                          last_updated = line 
+                     i = i + 1
+                f.close()    
+                
+                fo = open("/var/log/ckan_qa_date_log.txt", "wb")
+                fo.write( str(last_updated).strip() + "\n")
+                fo.write("0")
+                fo.close()
+                
                 print "All Dataset scanned!!"
                
         elif cmd == 'clean':
