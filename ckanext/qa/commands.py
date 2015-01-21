@@ -58,6 +58,11 @@ class QACommand(p.toolkit.CkanCommand):
         self.log = logging.getLogger('ckanext.qa')
 
         if cmd == 'update':
+            
+            if len(self.args) > 1:
+               self.update_resource_rating()
+               return
+            
             if os.path.isfile('/var/log/ckan_qa_all_log.txt') and os.stat("/var/log/ckan_qa_all_log.txt").st_size > 1:
                 with open('/var/log/ckan_qa_all_log.txt', 'r') as f:
                   for line in f:
@@ -69,6 +74,9 @@ class QACommand(p.toolkit.CkanCommand):
             if not start:
               start = 0
               
+            if os.path.isfile('/var/log/ckan_qa_sel_log.txt'):
+               os.remove("/var/log/ckan_qa_sel_log.txt")
+            
             print "Counter from file: " + start  
             url = config.get('solr_url') + "/select?q=metadata_modified:[2012-01-01T00:00:000Z%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
 
@@ -120,6 +128,11 @@ class QACommand(p.toolkit.CkanCommand):
 
 
         elif cmd == 'update_sel':
+        
+             if len(self.args) > 1:
+               self.update_resource_rating()
+               return
+        
              if os.path.isfile('/var/log/ckan_qa_sel_log.txt') and os.stat("/var/log/ckan_qa_sel_log.txt").st_size > 1:
                 with open('/var/log/ckan_qa_sel_log.txt', 'r') as f:
                   for line in f:
@@ -130,7 +143,6 @@ class QACommand(p.toolkit.CkanCommand):
                          last_updated = line 
                 f.close()
             
-             if last_updated:
                 print "Last Updated from file: " + last_updated
             
                 url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
@@ -174,7 +186,7 @@ class QACommand(p.toolkit.CkanCommand):
                 print "All Dataset scanned for selective QA update!!"
                 
              else:
-               print "File for selective update is missing."
+               print "File for selective update is missing. Run QA update cron first."
                
         elif cmd == 'clean':
             self.log.error('Command "%s" not implemented' % (cmd,))
