@@ -77,7 +77,7 @@ class QACommand(p.toolkit.CkanCommand):
             if os.path.isfile('/var/log/ckan_qa_sel_log.txt'):
                os.remove("/var/log/ckan_qa_sel_log.txt")
             
-            print "Counter from file: " + start  
+            print "Counter from file: " + str(start)  
             url = config.get('solr_url') + "/select?q=metadata_modified:[2012-01-01T00:00:000Z%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
 
             response = self.get_data(url)
