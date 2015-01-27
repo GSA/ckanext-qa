@@ -106,7 +106,7 @@ class QACommand(p.toolkit.CkanCommand):
                             fo = open("/var/log/ckan_qa_all_log.txt", "wb")
                             fo.write(str(counter))
                             fo.close()
-                            last_updated = results[j]['metadata_modified']
+                            #last_updated = results[j]['metadata_modified']
                             
                         self.args.append(results[j]['name'])
                         self.update_resource_rating()
@@ -120,9 +120,18 @@ class QACommand(p.toolkit.CkanCommand):
                 fo.write("0")
                 fo.close()
                 
-                fo = open("/var/log/ckan_qa_sel_log.txt", "wb")
-                fo.write( str(last_updated).strip())
-                fo.close()
+                url = config.get('solr_url') + "/select?q=metadata_modified:[2012-01-01T00:00:000Z%20TO%20NOW]&sort=metadata_modified+desc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified&rows=1"
+                response = self.get_data(url)
+                if (response != 'error'):
+                  f = response.read()
+                  data = json.loads(f)
+                
+                  results = data.get('response').get('docs')
+                  if results[0]['metadata_modified'] != None:
+                    fo = open("/var/log/ckan_qa_sel_log.txt", "wb")
+                    fo.write( str(results[0]['metadata_modified']).strip())
+                    fo.close()
+                   
                 
                 print "All Dataset scanned!!"
 
