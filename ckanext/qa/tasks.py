@@ -74,7 +74,7 @@ def _update_task_status(context, data):
                  
     req = urllib2.Request(url, params, headers)
     try:
-        response = urllib2.urlopen(req, 120)
+        response = urllib2.urlopen(req, timeout = 120)
     except HTTPError as e:            
       #raise CkanError('The server couldn\'t fulfill the request. Error code: %s'
       #                      % (e.code))
@@ -163,7 +163,7 @@ def update(context, data):
                   }
              
         req = urllib2.Request(url, params, headers)
-        response = urllib2.urlopen(req, 120)
+        response = urllib2.urlopen(req, timeout = 120)
         f = response.read()
         content = json.loads(f)
                        
@@ -227,9 +227,6 @@ def resource_score(context, data):
         score_reason = 'License not open'
     else:
         try:
-            #headers = json.loads(link_checker("{}", json.dumps(data)))
-            #ct = headers.get('content-type')
-
             ct = get_content_type(data['url'])
 
             # ignore charset if exists (just take everything before the ';')
@@ -282,5 +279,5 @@ def resource_score(context, data):
     }
 
 def get_content_type(url):
-    d = urllib2.urlopen(url, 120)
+    d = urllib2.urlopen(url, timeout = 120)
     return d.info()['Content-Type']
