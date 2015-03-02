@@ -125,6 +125,14 @@ def _task_status_data(id, result):
             'value': result['openness_score_failure_count'],
             'last_updated': datetime.datetime.now().isoformat()
         },
+        {
+            'entity_id': id,
+            'entity_type': u'resource',
+            'task_type': 'qa',
+            'key': u'error_code',
+            'value': result['error_code'],
+            'last_updated': datetime.datetime.now().isoformat()
+        },
     ]
 
 
@@ -147,6 +155,7 @@ def update(context, data):
         context = json.loads(context)
 
         result = resource_score(context, data)
+        
         log.info('Openness score for dataset %s (res#%s): %r (%s)',
                  data['package'], data['position'],
                  result['openness_score'], result['openness_score_reason'])
@@ -209,6 +218,7 @@ def resource_score(context, data):
     score = 0
     score_reason = ''
     score_failure_count = 0
+    error_code = 0
 
     # get openness score failure count for task status table if exists
     api_url = urlparse.urljoin(context['site_url'], 'api/action')
@@ -272,12 +282,28 @@ def resource_score(context, data):
     else:
         score_failure_count = 0
 
+    error_code = get_error_code(data['url'])
+     
     return {
         'openness_score': score,
         'openness_score_reason': score_reason,
         'openness_score_failure_count': score_failure_count,
+        'error_code': error_code,
     }
 
 def get_content_type(url):
     d = urllib2.urlopen(url, timeout = 120)
     return d.info()['Content-Type']
+    
+
+def get_error_code(url):
+    req = urllib2.Request(url)
+    try:
+       urllib2.urlopen(req, timeout = 120)
+       return 0
+    except urllib2.HTTPError, e:
+       return e.code
+    except URLError, e:
+       return e.code 
+    except IOError, e:
+       return e.code 
