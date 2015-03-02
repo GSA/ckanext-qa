@@ -304,6 +304,8 @@ def get_error_code(url):
     except urllib2.HTTPError, e:
        return e.code
     except URLError, e:
+       return 408
+    except URLError, e:
        return e.code 
     except IOError, e:
        return e.code 
