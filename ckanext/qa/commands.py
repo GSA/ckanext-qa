@@ -57,84 +57,123 @@ class QACommand(p.toolkit.CkanCommand):
         # won't get disabled
         self.log = logging.getLogger('ckanext.qa')
 
-        if cmd == 'update':
-            
-            if len(self.args) > 1:
-               self.update_resource_rating()
-               return
-            
-            if os.path.isfile('/var/log/ckan_qa_all_log.txt') and os.stat("/var/log/ckan_qa_all_log.txt").st_size > 1:
-                with open('/var/log/ckan_qa_all_log.txt', 'r') as f:
-                  for line in f:
-                     start = line
-                f.close()
-            else:
-                start = 0
-        
-            if not start:
-              start = 0
-              
-            if os.path.isfile('/var/log/ckan_qa_sel_log.txt'):
-               os.remove("/var/log/ckan_qa_sel_log.txt")
-            
-            print "Counter from file: " + str(start)  
-            url = config.get('solr_url') + "/select?q=metadata_modified:[2012-01-01T00:00:000Z%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
+        log_last_modified = '/var/log/qa-metadata-modified.log'
+        log_last_full_run = '/var/log/qa-last-full-run.log'
 
+        if cmd == 'collect-ids':
+
+            # quit if log_last_full_run is with 30 days
+            last_run = None
+            if os.path.isfile(log_last_full_run):
+                with open(log_last_full_run, 'r') as f:
+                    last_run = f.readline()
+
+            if last_run:
+                import dateutil.parser
+                try:
+                    last_run_timestamp = dateutil.parser.parse(last_run)
+                except ValueError:
+                    pass
+                else:
+                    diff = datetime.datetime.now() - last_run_timestamp
+                    if diff.days < 30:
+                        raise Exception('Last qa full update was run %s days ago' % diff.days)
+                        return
+
+            url = config.get('solr_url') + "/select?q=metadata_modified:[2012-01-01T00:00:000Z%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=id,metadata_modified"
             response = self.get_data(url)
-            
-            if (response != 'error'):
+            if response == 'error':
+                self.log.error('Error getting response from solr.')
+                return
+
+            f = response.read()
+            data = json.loads(f)
+            total = int(data.get('response').get('numFound'))
+
+            start = 0
+            chunk_size = 1000
+            counter = start
+
+            sql = '''DELETE FROM qa_ids; ALTER SEQUENCE qa_ids_id_seq RESTART WITH 1;'''
+            model.Session.execute(sql)
+            model.Session.commit()
+
+            for x in range(0, int(math.ceil(total/chunk_size))+1):
+                self.log.info('Collecting %s package ids starting from %s of %s.' %
+                    (chunk_size, start, total))
+                response = self.get_data(url + "&rows=%s&start=%s" % (chunk_size, start))
                 f = response.read()
                 data = json.loads(f)
-                rows = int(data.get('response').get('numFound')) - int(start)
+                total = int(data.get('response').get('numFound'))
+                results = data.get('response').get('docs')
+                metadata_modified_start = None
+                metadata_modified_end = None
 
-                chunk_size = 1000
-                
-                counter = start
+                for j in range(0, len(results)):
+                    if not metadata_modified_start:
+                        metadata_modified_start = results[j]['metadata_modified']
+                    sql = '''INSERT INTO qa_ids (id, pkg_id) VALUES (DEFAULT, :pkg_id);'''
+                    model.Session.execute(sql, {'pkg_id' : results[j]['id']})
+                model.Session.commit()
 
-                for x in range(0, int(math.ceil(rows/chunk_size))+1):                      
+                metadata_modified_end = results[j]['metadata_modified']
 
-                    print url + "&rows=" + str(chunk_size) + "&start=" + str(start)
-                    response = self.get_data(url + "&rows=" + str(chunk_size) + "&start=" + str(start))
-                    f = response.read()
-                    data = json.loads(f)
-                    results = data.get('response').get('docs')
+                self.log.info('%s package ids collected. metadata_modified starts from %s, ends at %s.' %
+                    (len(results), metadata_modified_start, metadata_modified_end))
 
-                    for j in range(0, len(results)):
-                        print "Currently scanning dataset: " +  results[j]['name'] + " with modified date: " + results[j]['metadata_modified']
-                        
-                        if results[j]['metadata_modified'] != None:
-                            fo = open("/var/log/ckan_qa_all_log.txt", "wb")
-                            fo.write(str(counter))
-                            fo.close()
-                            #last_updated = results[j]['metadata_modified']
-                            
-                        self.args.append(results[j]['name'])
-                        self.update_resource_rating()
-                        self.args.pop()
-                        
-                        counter = int(counter) + 1
-                    
-                    start = int(start) + len(results)
-                    
-                fo = open("/var/log/ckan_qa_all_log.txt", "wb")
-                fo.write("0")
-                fo.close()
-                
-                url = config.get('solr_url') + "/select?q=metadata_modified:[2012-01-01T00:00:000Z%20TO%20NOW]&sort=metadata_modified+desc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified&rows=1"
-                response = self.get_data(url)
-                if (response != 'error'):
-                  f = response.read()
-                  data = json.loads(f)
-                
-                  results = data.get('response').get('docs')
-                  if results[0]['metadata_modified'] != None:
-                    fo = open("/var/log/ckan_qa_sel_log.txt", "wb")
-                    fo.write( str(results[0]['metadata_modified']).strip())
-                    fo.close()
-                   
-                
-                print "All Dataset scanned!!"
+                start = start + chunk_size
 
+            if os.path.isfile(log_last_modified):
+                with open(log_last_modified, 'r+') as f:
+                    current = f.readline()
+                    if metadata_modified_end > current:
+                        f.seek(0)
+                        f.write(metadata_modified_end)
+                        f.truncate()
+            else:
+                with open(log_last_modified, 'w+') as f:
+                    f.write(metadata_modified_end)
+                    f.truncate()
+
+            return
+
+        if cmd == 'update':
+
+            if len(self.args) > 1:
+                self.update_resource_rating()
+                return
+
+            sql = '''UPDATE qa_ids SET status = 'Running' WHERE id = (SELECT MIN(id) FROM qa_ids WHERE status != 'Running') RETURNING id, pkg_id;'''
+            result = model.Session.execute(sql).fetchall()
+            model.Session.commit()
+            while result:
+                id, pkg_id = result[0]
+                self.args.append(pkg_id)
+                self.update_resource_rating()
+                self.args.pop()
+                sql_delete = '''DELETE FROM qa_ids WHERE id = :id'''
+                model.Session.execute(sql_delete, {'id' : id})
+                model.Session.commit()
+
+                result = model.Session.execute(sql).fetchall()
+                model.Session.commit()
+
+            sql = '''SELECT COUNT(*) FROM qa_ids;'''
+            result = model.Session.execute(sql).fetchall()
+            (possible_stuck_running,) = result[0]
+            if possible_stuck_running:
+                sql = '''UPDATE qa_ids SET status = 'New';'''
+                model.Session.execute(sql)
+                model.Session.commit()
+                self.log.info('qa update thread done. Reset %s Running ones on exit.' %
+                    (possible_stuck_running))
+            else:
+                self.log.info('qa update thread done. All datasets completed.')
+                with open(log_last_full_run, 'w+') as f:
+                    f.write(datetime.datetime.now().isoformat())
+                    f.truncate()
+
+            return
 
         elif cmd == 'update_sel':
         
