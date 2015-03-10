@@ -143,7 +143,7 @@ class QACommand(p.toolkit.CkanCommand):
                 self.update_resource_rating()
                 return
 
-            sql = '''UPDATE qa_ids SET status = 'Running' WHERE id = (SELECT MIN(id) FROM qa_ids WHERE status != 'Running') RETURNING id, pkg_id;'''
+            sql = '''UPDATE qa_ids SET status = 'Running' WHERE id = (SELECT MIN(id) FROM qa_ids WHERE status = 'New') RETURNING id, pkg_id;'''
             result = model.Session.execute(sql).fetchall()
             model.Session.commit()
             while result:
@@ -157,6 +157,14 @@ class QACommand(p.toolkit.CkanCommand):
 
                 result = model.Session.execute(sql).fetchall()
                 model.Session.commit()
+
+            # one more try to make sure it finishes its job
+            sql = '''SELECT 1 FROM qa_ids WHERE status = 'New' LIMIT 1;'''
+            result = model.Session.execute(sql).fetchall()
+            (still_new,) = result[0]
+            if still_new:
+                raise Exception('qa update job quits early for unknown reason.')
+                return
 
             sql = '''SELECT COUNT(*) FROM qa_ids;'''
             result = model.Session.execute(sql).fetchall()
