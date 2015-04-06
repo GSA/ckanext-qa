@@ -161,6 +161,8 @@ class QACommand(p.toolkit.CkanCommand):
             # one more try to make sure it finishes its job
             sql = '''SELECT 1 FROM qa_ids WHERE status = 'New' LIMIT 1;'''
             result = model.Session.execute(sql).fetchall()
+            if not result:
+                return
             (still_new,) = result[0]
             if still_new:
                 raise Exception('qa update job quits early for unknown reason.')
