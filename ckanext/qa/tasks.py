@@ -38,6 +38,7 @@ OPENNESS_SCORE_REASON = {
 
 MIME_TYPE_SCORE = {
     'text/plain': 1,
+    'text/html': 1,
     'text': 1,
     'txt': 1,
     'application/vnd.ms-excel': 2,
@@ -239,28 +240,30 @@ def resource_score(context, data):
     else:
         try:
             # ct = get_content_type(data['url'])
+            # ct = resource.get_content_type()
+
+            # ignore charset if exists (just take everything before the ';')
+            # if ct and ';' in ct:
+            #     ct = ct.split(';')[0]
 
             # also get format from resource and by guessing from file extension
-            resource_format = data.get('format', '').lower()
-            file_type = mimetypes.guess_type(data['url'])[0]
+            # resource_format = data.get('format', '').lower()
+            # file_type = mimetypes.guess_type(data['url'])[0]
 
+            # score = MIME_TYPE_SCORE.get(ct, -1)
             # file type takes priority for scoring
-            if file_type:
-                score = MIME_TYPE_SCORE.get(file_type, -1)
-            else:
-                ct = resource.get_content_type()
-
-                # ignore charset if exists (just take everything before the ';')
-                if ct and ';' in ct:
-                    ct = ct.split(';')[0]
-
-                if ct:
-                    score = MIME_TYPE_SCORE.get(ct, -1)
-                elif resource_format:
-                    score = MIME_TYPE_SCORE.get(resource_format, -1)
+            # if file_type:
+            #     score = MIME_TYPE_SCORE.get(file_type, -1)
+            # elif ct:
+            #     score = MIME_TYPE_SCORE.get(ct, -1)
+            # elif resource_format:
+            #     score = MIME_TYPE_SCORE.get(resource_format, -1)
 
             if not data.get('is_open'):
                 score = 0
+            else:
+                ct = resource.get_content_type()
+                score = MIME_TYPE_SCORE.get(ct, -1)
 
             score_reason = OPENNESS_SCORE_REASON[score]
 
@@ -275,8 +278,8 @@ def resource_score(context, data):
                 # TODO: use the todo extension to flag this issue
                 pass
 
-        except LinkCheckerError, e:
-            score_reason = str(e)
+        # except LinkCheckerError, e:
+        #     score_reason = str(e)
         except Exception, e:
             log.error('Unexpected error while calculating openness score %s: %s', e.__class__.__name__, unicode(e))
             score_reason = "Unknown error: %s" % str(e)
@@ -324,11 +327,11 @@ class RemoteResource(object):
     def get_content_type(self):
         try:
             # readme http://docs.python-requests.org/en/latest/api/
-            r = requests.head(self.url, verify=False, timeout=(120, 60))
+            r = requests.head(self.url, verify=False, timeout=20.0)
 
             method = 'HEAD'
             if r.status_code > 399 or r.headers.get('content-type') is None:
-                r = requests.get(self.url, verify=False, timeout=(120, 60))
+                r = requests.get(self.url, verify=False, timeout=20.0)
                 method = 'GET'
                 if r.status_code > 399 or r.headers.get('content-type') is None:
                     self.status_code = r.status_code
@@ -338,8 +341,7 @@ class RemoteResource(object):
                     return self.content_type
 
             content_type = r.headers.get('content-type')
-            content_type = content_type.split(';', 1)
-            self.content_type = content_type[0]
+            self.content_type = content_type.split(';', 1)[0]
             self.status_code = r.status_code
             self.reason = r.reason
             self.method = method
@@ -347,7 +349,7 @@ class RemoteResource(object):
 
         except Exception as ex:
             log.error('get_content_type exception: %s ', ex)
-            return json.dumps({'ResultSet': {'Error': 'unknown error'}})
+            return None
 
     def get_error_code(self):
         return self.status_code
