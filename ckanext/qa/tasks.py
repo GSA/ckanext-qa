@@ -2,19 +2,21 @@
 Score datasets on Sir Tim Berners-Lee\'s five stars of openness
 based on mime-type.
 '''
-import datetime
 import mimetypes
 import json
-import requests
 import urlparse
-import ckan.lib.celery_app as celery_app
-
-from ckanext.archiver.tasks import link_checker, LinkCheckerError
-
 import urllib2
-from urllib2 import Request, urlopen, URLError, HTTPError
+from urllib2 import URLError, HTTPError
 import logging
+
+import datetime
+import requests
+import ckan.lib.celery_app as celery_app
+from ckanext.archiver.tasks import LinkCheckerError
+
+
 log = logging.getLogger('ckanext.qa')
+
 
 class QAError(Exception):
     pass
@@ -64,40 +66,40 @@ def _update_task_status(context, data):
     """
     api_url = urlparse.urljoin(context['site_url'], 'api/action')
 
-
     url = api_url + '/task_status_update'
     params = '%s=1' % json.dumps({'data': data})
-    headers = { "Accept" : "application/json",
-                "Conthent-Type": "application/json",
-                'Authorization': context['apikey']
-              }
-                 
+    headers = {"Accept": "application/json",
+               "Conthent-Type": "application/json",
+               'Authorization': context['apikey']
+               }
+
     req = urllib2.Request(url, params, headers)
     try:
-        response = urllib2.urlopen(req, timeout = 120)
-    except HTTPError as e:            
-      #raise CkanError('The server couldn\'t fulfill the request. Error code: %s'
-      #                      % (e.code))
-      log.error('The server couldn\'t fulfill the request. Error code: %s'
-                            % (e.code))
-    except URLError as e:      
-      #raise CkanError('We failed to reach a server. Reason: %s'
-      #                      % (e.reason))      
-      log.error('We failed to reach a server. Reason: %s'
-                            % (e.reason))
-    except:      
-      pass     
+        response = urllib2.urlopen(req, timeout=120)
+    except HTTPError as e:
+        # raise CkanError('The server couldn\'t fulfill the request. Error code: %s'
+        # % (e.code))
+        log.error('The server couldn\'t fulfill the request. Error code: %s'
+                  % (e.code))
+    except URLError as e:
+        # raise CkanError('We failed to reach a server. Reason: %s'
+        # % (e.reason))
+        log.error('We failed to reach a server. Reason: %s'
+                  % (e.reason))
+    except:
+        pass
     else:
         f = response.read()
         content = json.loads(f)
-        
+
         if content.getcode() == 200:
             return json.dumps(content.get('result').get('results'))
         else:
-            #raise CkanError('ckan failed to update task_status, status_code (%s), error %s'
-            #                % (res.status_code, res.content))
+            # raise CkanError('ckan failed to update task_status, status_code (%s), error %s'
+            # % (res.status_code, res.content))
             log.error('ckan failed to update task_status, status_code (%s), error %s'
-                            % (res.status_code, res.content))
+                      % (res.status_code, res.content))
+
 
 def _task_status_data(id, result):
     return [
@@ -149,33 +151,32 @@ def update(context, data):
         'openness_score_failure_count': the number of consecutive times that
                                         this resource has returned a score of 0
     """
-    #log = update.get_logger()
+    # log = update.get_logger()
     try:
         data = json.loads(data)
         context = json.loads(context)
 
         result = resource_score(context, data)
-        
+
         log.info('Openness score for dataset %s (res#%s): %r (%s)',
                  data['package'], data['position'],
                  result['openness_score'], result['openness_score_reason'])
-        
+
         task_status_data = _task_status_data(data['id'], result)
         api_url = urlparse.urljoin(context['site_url'], 'api/action')
 
-        
         url = api_url + '/task_status_update_many'
         params = '%s=1' % json.dumps({'data': task_status_data})
-        headers = { "Accept" : "application/json",
-                    "Conthent-Type": "application/json",
-                    'Authorization': context['apikey']
-                  }
-             
+        headers = {"Accept": "application/json",
+                   "Conthent-Type": "application/json",
+                   'Authorization': context['apikey']
+                   }
+
         req = urllib2.Request(url, params, headers)
-        response = urllib2.urlopen(req, timeout = 120)
+        response = urllib2.urlopen(req, timeout=120)
         f = response.read()
         content = json.loads(f)
-                       
+
         if not content.get('success'):
             err = 'ckan failed to update task_status, error %s' \
                   % content['error']
@@ -184,21 +185,20 @@ def update(context, data):
             err = 'ckan failed to update task_status, status_code (%s), error %s' \
                   % (response.getcode(), content.get('result').get('results'))
             log.error(err)
-            
+
         return json.dumps(content.get('result').get('results'))
     except Exception, e:
-        
-        log.error('Exception occurred during QA update: %s: %s', e.__class__.__name__,  unicode(e))
+
+        log.error('Exception occurred during QA update: %s: %s', e.__class__.__name__, unicode(e))
         _update_task_status(context, {
             'entity_id': data['id'],
             'entity_type': u'resource',
             'task_type': 'qa',
             'key': u'celery_task_id',
             'value': unicode(update.request.id),
-            'error': '%s: %s' % (e.__class__.__name__,  unicode(e)),
+            'error': '%s: %s' % (e.__class__.__name__, unicode(e)),
             'last_updated': datetime.datetime.now().isoformat()
         })
-        
 
 
 def resource_score(context, data):
@@ -213,51 +213,55 @@ def resource_score(context, data):
         'openness_score_failure_count': the number of consecutive times that
                                         this resource has returned a score of 0
     """
-    #log = update.get_logger()
+    # log = update.get_logger()
 
     score = 0
-    score_reason = ''
+    # score_reason = ''
     score_failure_count = 0
-    error_code = 0
+    # error_code = 0
 
     # get openness score failure count for task status table if exists
     api_url = urlparse.urljoin(context['site_url'], 'api/action')
-  
+
     args = {'entity_id': data['id'], 'task_type': 'qa',
             'key': 'openness_score_failure_count'}
-            
+
     response = requests.get(api_url + '/task_status_show', params=args).text
-    
-    
+
     if json.loads(response)['success']:
         score_failure_count = int(json.loads(response)['result'].get('value', '0'))
+
+    resource = RemoteResource(data['url'])
 
     # no score for resources that don't have an open license
     if not data.get('is_open') and 2 < 1:
         score_reason = 'License not open'
     else:
         try:
-            ct = get_content_type(data['url'])
-
-            # ignore charset if exists (just take everything before the ';')
-            if ct and ';' in ct:
-                ct = ct.split(';')[0]
+            # ct = get_content_type(data['url'])
 
             # also get format from resource and by guessing from file extension
-            format = data.get('format', '').lower()
+            resource_format = data.get('format', '').lower()
             file_type = mimetypes.guess_type(data['url'])[0]
 
             # file type takes priority for scoring
             if file_type:
                 score = MIME_TYPE_SCORE.get(file_type, -1)
-            elif ct:
-                score = MIME_TYPE_SCORE.get(ct, -1)
-            elif format:
-                score = MIME_TYPE_SCORE.get(format, -1)
+            else:
+                ct = resource.get_content_type()
+
+                # ignore charset if exists (just take everything before the ';')
+                if ct and ';' in ct:
+                    ct = ct.split(';')[0]
+
+                if ct:
+                    score = MIME_TYPE_SCORE.get(ct, -1)
+                elif resource_format:
+                    score = MIME_TYPE_SCORE.get(resource_format, -1)
 
             if not data.get('is_open'):
-				score = 0
-			
+                score = 0
+
             score_reason = OPENNESS_SCORE_REASON[score]
 
             # negative scores are only useful for getting the reason message,
@@ -274,7 +278,7 @@ def resource_score(context, data):
         except LinkCheckerError, e:
             score_reason = str(e)
         except Exception, e:
-            log.error('Unexpected error while calculating openness score %s: %s', e.__class__.__name__,  unicode(e))
+            log.error('Unexpected error while calculating openness score %s: %s', e.__class__.__name__, unicode(e))
             score_reason = "Unknown error: %s" % str(e)
 
     if score == 0:
@@ -282,8 +286,9 @@ def resource_score(context, data):
     else:
         score_failure_count = 0
 
-    error_code = get_error_code(data['url'])
-     
+    # error_code = get_error_code(data['url'])
+    error_code = resource.get_error_code()
+
     return {
         'openness_score': score,
         'openness_score_reason': score_reason,
@@ -291,17 +296,58 @@ def resource_score(context, data):
         'error_code': error_code,
     }
 
-def get_content_type(url):
-    d = urllib2.urlopen(url, timeout = 120)
-    return d.info()['Content-Type']
-    
 
-def get_error_code(url):
-    req = urllib2.Request(url)
-    try:
-       urllib2.urlopen(req, timeout = 120)
-       return 0
-    except urllib2.HTTPError, e:
-       return e.code
-    except URLError, e:
-       return 408
+# def get_content_type(url):
+#     d = urllib2.urlopen(url, timeout=120)
+#     return d.info()['Content-Type']
+#
+#
+# def get_error_code(url):
+#     req = urllib2.Request(url)
+#     try:
+#         urllib2.urlopen(req, timeout=120)
+#         return 0
+#     except urllib2.HTTPError, e:
+#         return e.code
+#     except URLError, e:
+#         return 408
+
+
+class RemoteResource(object):
+    def __init__(self, url):
+        self.url = url
+        self.status_code = 0
+        self.reason = ''
+        self.method = None
+        self.content_type = None
+
+    def get_content_type(self):
+        try:
+            # readme http://docs.python-requests.org/en/latest/api/
+            r = requests.head(self.url, verify=False, timeout=(120, 60))
+
+            method = 'HEAD'
+            if r.status_code > 399 or r.headers.get('content-type') is None:
+                r = requests.get(self.url, verify=False, timeout=(120, 60))
+                method = 'GET'
+                if r.status_code > 399 or r.headers.get('content-type') is None:
+                    self.status_code = r.status_code
+                    self.reason = r.reason
+                    self.method = method
+                    self.content_type = None
+                    return self.content_type
+
+            content_type = r.headers.get('content-type')
+            content_type = content_type.split(';', 1)
+            self.content_type = content_type[0]
+            self.status_code = r.status_code
+            self.reason = r.reason
+            self.method = method
+            return self.content_type
+
+        except Exception as ex:
+            log.error('get_content_type exception: %s ', ex)
+            return json.dumps({'ResultSet': {'Error': 'unknown error'}})
+
+    def get_error_code(self):
+        return self.status_code
