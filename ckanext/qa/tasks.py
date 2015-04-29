@@ -259,11 +259,11 @@ def resource_score(context, data):
             # elif resource_format:
             #     score = MIME_TYPE_SCORE.get(resource_format, -1)
 
+            ct = resource.get_content_type()
+            score = MIME_TYPE_SCORE.get(ct, -1)
+
             if not data.get('is_open'):
                 score = 0
-            else:
-                ct = resource.get_content_type()
-                score = MIME_TYPE_SCORE.get(ct, -1)
 
             score_reason = OPENNESS_SCORE_REASON[score]
 
@@ -352,4 +352,6 @@ class RemoteResource(object):
             return None
 
     def get_error_code(self):
+        if self.status_code < 400:
+            return 0
         return self.status_code
