@@ -143,7 +143,7 @@ class QACommand(p.toolkit.CkanCommand):
                 self.update_resource_rating()
                 return
 
-            sql = '''UPDATE qa_ids SET status = 'Running' WHERE id = (SELECT MIN(id) FROM qa_ids WHERE status = 'New') RETURNING id, pkg_id;'''
+            sql = '''UPDATE qa_ids SET status = 'Running' WHERE id = (SELECT id FROM qa_ids WHERE status = 'New' ORDER BY random() LIMIT 1) RETURNING id, pkg_id;'''
             result = model.Session.execute(sql).fetchall()
             model.Session.commit()
             while result:
