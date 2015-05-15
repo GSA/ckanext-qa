@@ -1,18 +1,18 @@
-'''
+"""
 Score datasets on Sir Tim Berners-Lee\'s five stars of openness
 based on mime-type.
-'''
-import mimetypes
+"""
+
 import json
 import urlparse
 import urllib2
 from urllib2 import URLError, HTTPError
 import logging
-
 import datetime
+
 import requests
+import re
 import ckan.lib.celery_app as celery_app
-from ckanext.archiver.tasks import LinkCheckerError
 
 
 log = logging.getLogger('ckanext.qa')
@@ -244,7 +244,7 @@ def resource_score(context, data):
 
             # ignore charset if exists (just take everything before the ';')
             # if ct and ';' in ct:
-            #     ct = ct.split(';')[0]
+            # ct = ct.split(';')[0]
 
             # also get format from resource and by guessing from file extension
             # resource_format = data.get('format', '').lower()
@@ -253,11 +253,11 @@ def resource_score(context, data):
             # score = MIME_TYPE_SCORE.get(ct, -1)
             # file type takes priority for scoring
             # if file_type:
-            #     score = MIME_TYPE_SCORE.get(file_type, -1)
+            # score = MIME_TYPE_SCORE.get(file_type, -1)
             # elif ct:
-            #     score = MIME_TYPE_SCORE.get(ct, -1)
+            # score = MIME_TYPE_SCORE.get(ct, -1)
             # elif resource_format:
-            #     score = MIME_TYPE_SCORE.get(resource_format, -1)
+            # score = MIME_TYPE_SCORE.get(resource_format, -1)
 
             ct = resource.get_content_type()
             score = MIME_TYPE_SCORE.get(ct, -1)
@@ -279,7 +279,7 @@ def resource_score(context, data):
                 pass
 
         # except LinkCheckerError, e:
-        #     score_reason = str(e)
+        # score_reason = str(e)
         except Exception, e:
             log.error('Unexpected error while calculating openness score %s: %s', e.__class__.__name__, unicode(e))
             score_reason = "Unknown error: %s" % str(e)
@@ -301,38 +301,53 @@ def resource_score(context, data):
 
 
 # def get_content_type(url):
-#     d = urllib2.urlopen(url, timeout=120)
-#     return d.info()['Content-Type']
+# d = urllib2.urlopen(url, timeout=120)
+# return d.info()['Content-Type']
 #
 #
 # def get_error_code(url):
-#     req = urllib2.Request(url)
-#     try:
-#         urllib2.urlopen(req, timeout=120)
-#         return 0
-#     except urllib2.HTTPError, e:
-#         return e.code
-#     except URLError, e:
-#         return 408
+# req = urllib2.Request(url)
+# try:
+# urllib2.urlopen(req, timeout=120)
+# return 0
+# except urllib2.HTTPError, e:
+# return e.code
+# except URLError, e:
+# return 408
+
+URL_REGEX = re.compile(
+    r'^(?:http)s?://'  # http:// or https:// or ftp:// or ftps://
+    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+    r'(?::\d+)?'  # optional port
+    r'(?:/?|[/?]\S+)$', re.IGNORECASE)
 
 
 class RemoteResource(object):
     def __init__(self, url):
-        self.url = url
+        self.url = url.strip()
         self.status_code = 0
         self.reason = ''
         self.method = None
         self.content_type = None
+        self.headers = {'User-Agent': 'Data.Gov Broken Link Checker'}
 
     def get_content_type(self):
+        if not self.valid_url():
+            self.status_code = 400
+            self.reason = 'Invalid URL'
+            self.content_type = ''
+            return self.content_type
         try:
-            # readme http://docs.python-requests.org/en/latest/api/
-            r = requests.head(self.url, verify=False, timeout=20.0)
-
+            # http://docs.python-requests.org/en/latest/api/
             method = 'HEAD'
+            r = requests.head(self.url, verify=False, timeout=20.0, allow_redirects=True, headers=self.headers)
+
             if r.status_code > 399 or r.headers.get('content-type') is None:
-                r = requests.get(self.url, verify=False, timeout=20.0)
                 method = 'GET'
+                r = requests.get(self.url, verify=False, timeout=20.0, allow_redirects=True, stream=True,
+                                 headers=self.headers)
+                r.raw.read(50)
                 if r.status_code > 399 or r.headers.get('content-type') is None:
                     self.status_code = r.status_code
                     self.reason = r.reason
@@ -348,8 +363,13 @@ class RemoteResource(object):
             return self.content_type
 
         except Exception as ex:
-            log.error('get_content_type exception: %s ', ex)
+            self.status_code = 500
+            log.error('get_content_type exception ( %s ): %s ' % (self.url, ex))
+
             return None
+
+    def valid_url(self):
+        return URL_REGEX.match(self.url)
 
     def get_error_code(self):
         if self.status_code < 400:
