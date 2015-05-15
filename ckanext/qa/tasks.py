@@ -316,7 +316,7 @@ def resource_score(context, data):
 # return 408
 
 URL_REGEX = re.compile(
-    r'^(?:http)s?://'  # http:// or https:// or ftp:// or ftps://
+    r'^(?:http)s?://'  # http:// or https://
     r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
     r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
     r'(?::\d+)?'  # optional port
@@ -364,6 +364,7 @@ class RemoteResource(object):
 
         except Exception as ex:
             self.status_code = 500
+            self.reason = ex.__class__.__name__
             log.error('get_content_type exception ( %s ): %s ' % (self.url, ex))
 
             return None
