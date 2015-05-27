@@ -191,8 +191,8 @@ class QACommand(p.toolkit.CkanCommand):
                self.update_resource_rating()
                return
         
-             if os.path.isfile('/var/log/ckan_qa_sel_log.txt') and os.stat("/var/log/ckan_qa_sel_log.txt").st_size > 1:
-                with open('/var/log/ckan_qa_sel_log.txt', 'r') as f:
+             if os.path.isfile(log_last_modified) and os.stat(log_last_modified).st_size > 1:
+                with open(log_last_modified, 'r') as f:
                   for line in f:
                      line = line.replace('\n', '')
                      if not 'Z' in line:
@@ -229,7 +229,7 @@ class QACommand(p.toolkit.CkanCommand):
                         print "Currently scanning dataset: " +  results[j]['name'] + " with modified date: " + results[j]['metadata_modified']
                 
                         if results[j]['metadata_modified'] != None:
-                            fo = open("/var/log/ckan_qa_sel_log.txt", "wb")
+                            fo = open(log_last_modified, "wb")
                             fo.write( str(results[j]['metadata_modified']).strip() )
                             fo.close()
                   
