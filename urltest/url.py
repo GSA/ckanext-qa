@@ -1,8 +1,9 @@
 import requests
 import re
+import urllib2
 
 URL_REGEX = re.compile(
-    r'^(?:http)s?://'  # http:// or https:// or ftp:// or ftps://
+    r'^(?:http|ftp)s?://'   # http:// or https:// or ftp:// or ftps://
     r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
     r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
     r'(?::\d+)?'  # optional port
@@ -23,6 +24,20 @@ class RemoteResource(object):
             self.reason = 'Invalid URL'
             self.content_type = ''
             return self.content_type
+
+        if 'ftp://' in self.url:
+            req = urllib2.Request(self.url)
+
+            try:
+                answer = urllib2.urlopen(req, timeout=20)
+                self.content_type = answer.headers.get('content-type')
+                self.status_code = 200
+                return 0
+            except urllib2.HTTPError, e:
+                return e.code
+            except Exception, e:
+                return 408
+
         try:
             # http://docs.python-requests.org/en/latest/api/
             method = 'HEAD'
@@ -71,7 +86,7 @@ class RemoteResource(object):
 resources = set()
 skip = set()
 
-f = open('resources.csv', 'r')
+f = open('rresources.csv', 'r')
 # f = open('resources_test.csv', 'r')
 
 for line in f:
@@ -102,14 +117,15 @@ for resource in resources:
 
         ct = resource.get_content_type()
 
-        if resource.status_code < 399:
-            continue
+        # if resource.status_code < 399:
+        #     continue
 
         print ct
         print "URL: \t\t\t%s" % resource.url
         print "METHOD: \t\t%s" % resource.method
         print "STATUS CODE: \t%s" % resource.status_code
         print "REASON: \t\t%s" % resource.reason
+        print "CONTENT TYPE: \t\t%s" % resource.content_type
         print "========================================"
 
         if not ct:

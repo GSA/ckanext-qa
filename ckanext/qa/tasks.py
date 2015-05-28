@@ -6,7 +6,6 @@ based on mime-type.
 import json
 import urlparse
 import urllib2
-from urllib2 import URLError, HTTPError
 import logging
 import datetime
 
@@ -77,12 +76,12 @@ def _update_task_status(context, data):
     req = urllib2.Request(url, params, headers)
     try:
         response = urllib2.urlopen(req, timeout=120)
-    except HTTPError as e:
+    except urllib2.HTTPError as e:
         # raise CkanError('The server couldn\'t fulfill the request. Error code: %s'
         # % (e.code))
         log.error('The server couldn\'t fulfill the request. Error code: %s'
                   % (e.code))
-    except URLError as e:
+    except urllib2.URLError as e:
         # raise CkanError('We failed to reach a server. Reason: %s'
         # % (e.reason))
         log.error('We failed to reach a server. Reason: %s'
@@ -316,7 +315,7 @@ def resource_score(context, data):
 # return 408
 
 URL_REGEX = re.compile(
-    r'^(?:http)s?://'  # http:// or https://
+    r'^(?:http|ftp)s?://'   # http:// or https:// or ftp:// or ftps://
     r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
     r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
     r'(?::\d+)?'  # optional port
@@ -338,6 +337,20 @@ class RemoteResource(object):
             self.reason = 'Invalid URL'
             self.content_type = ''
             return self.content_type
+
+        if 'ftp://' in self.url:
+            req = urllib2.Request(self.url)
+
+            try:
+                answer = urllib2.urlopen(req, timeout=20)
+                self.content_type = answer.headers.get('content-type')
+                self.status_code = 200
+                return self.content_type
+            except urllib2.HTTPError, e:
+                return e.code
+            except Exception, e:
+                return 408
+
         try:
             # http://docs.python-requests.org/en/latest/api/
             method = 'HEAD'
