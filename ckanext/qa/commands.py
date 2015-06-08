@@ -285,6 +285,9 @@ class QACommand(p.toolkit.CkanCommand):
             'username': user.get('name'),
         })
 
+        sql = '''Delete from resource_domain_info;'''
+        model.Session.execute(sql)
+
         for package in self._package_list():
             self.log.info("QA on dataset being added to Celery queue: %s (%d resources)" %
                                 (package.get('name'), len(package.get('resources', []))))

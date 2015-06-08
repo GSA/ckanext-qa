@@ -12,6 +12,7 @@ import datetime
 import requests
 import re
 import ckan.lib.celery_app as celery_app
+from ckan import model
 
 
 log = logging.getLogger('ckanext.qa')
@@ -238,27 +239,50 @@ def resource_score(context, data):
         score_reason = 'License not open'
     else:
         try:
-            # ct = get_content_type(data['url'])
-            # ct = resource.get_content_type()
-
-            # ignore charset if exists (just take everything before the ';')
-            # if ct and ';' in ct:
-            # ct = ct.split(';')[0]
-
-            # also get format from resource and by guessing from file extension
-            # resource_format = data.get('format', '').lower()
-            # file_type = mimetypes.guess_type(data['url'])[0]
-
-            # score = MIME_TYPE_SCORE.get(ct, -1)
-            # file type takes priority for scoring
-            # if file_type:
-            # score = MIME_TYPE_SCORE.get(file_type, -1)
-            # elif ct:
-            # score = MIME_TYPE_SCORE.get(ct, -1)
-            # elif resource_format:
-            # score = MIME_TYPE_SCORE.get(resource_format, -1)
-
-            ct = resource.get_content_type()
+        
+            domain_url = resource.url.split("/")
+            if len(domain_url) > 3:
+                domain_url.pop()
+        
+            domain_url =  "/".join(domain_url)
+            
+            sql = '''select status, count from resource_domain_info where domain = :domain_url;'''
+            q = model.Session.execute(sql, {'domain_url' : domain_url})
+            
+            num = q.rowcount
+ 
+            if num > 0:        
+                for row in q:
+                    if row['count'] == 10 and row['status'] == 'blacklist':
+                        resource.status_code = 500
+                        ct = None
+                        break
+                    
+                    ct = resource.get_content_type()    
+                    if resource.status_code >=500 and resource.status_code < 600 and row[0] == 'undecided':
+                        count = row['count'] + 1
+                        if count == 10:
+                            sql = '''update resource_domain_info set count = :count, status='blacklist' where domain = :domain;'''
+                            model.Session.execute(sql, {'count':count, 'domain': domain_url})
+                        else:
+                            sql = '''update resource_domain_info set count = :count where domain = :domain;'''
+                            model.Session.execute(sql, {'count':count, 'domain': domain_url})
+                    else:
+                        sql = '''update resource_domain_info set status='whitelist' where domain = :domain; '''
+                        model.Session.execute(sql, {'domain': domain_url})                   
+                    model.Session.commit()
+            else:
+                ct = resource.get_content_type()
+                if resource.status_code >=500 and resource.status_code < 600:
+                    status = 'undecided'
+                    num = num + 1
+                else:
+                    status = 'whitelist'
+                
+                sql = '''INSERT INTO resource_domain_info (domain, status, count) VALUES(:domain_url, :status, :num);'''
+                model.Session.execute(sql, {'domain_url':domain_url, 'status':status, 'num':num})
+                model.Session.commit() 
+        
             score = MIME_TYPE_SCORE.get(ct, -1)
 
             if not data.get('is_open'):
@@ -277,8 +301,6 @@ def resource_score(context, data):
                 # TODO: use the todo extension to flag this issue
                 pass
 
-        # except LinkCheckerError, e:
-        # score_reason = str(e)
         except Exception, e:
             log.error('Unexpected error while calculating openness score %s: %s', e.__class__.__name__, unicode(e))
             score_reason = "Unknown error: %s" % str(e)
@@ -297,22 +319,6 @@ def resource_score(context, data):
         'openness_score_failure_count': score_failure_count,
         'error_code': error_code,
     }
-
-
-# def get_content_type(url):
-# d = urllib2.urlopen(url, timeout=120)
-# return d.info()['Content-Type']
-#
-#
-# def get_error_code(url):
-# req = urllib2.Request(url)
-# try:
-# urllib2.urlopen(req, timeout=120)
-# return 0
-# except urllib2.HTTPError, e:
-# return e.code
-# except URLError, e:
-# return 408
 
 URL_REGEX = re.compile(
     r'^(?:http|ftp)s?://'   # http:// or https:// or ftp:// or ftps://
