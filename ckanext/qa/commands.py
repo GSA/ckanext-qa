@@ -160,28 +160,26 @@ class QACommand(p.toolkit.CkanCommand):
 
             # one more try to make sure it finishes its job
             sql = '''SELECT 1 FROM qa_ids WHERE status = 'New' LIMIT 1;'''
-            result = model.Session.execute(sql).fetchall()
-            if not result:
-                return
-            (still_new,) = result[0]
-            if still_new:
+            result = model.Session.execute(sql).fetchone()
+            if result:
                 raise Exception('qa update job quits early for unknown reason.')
                 return
 
             sql = '''SELECT COUNT(*) FROM qa_ids;'''
-            result = model.Session.execute(sql).fetchall()
-            (possible_stuck_running,) = result[0]
-            if possible_stuck_running:
+            result = model.Session.execute(sql).fetchone()
+            if result and result[0]:
                 sql = '''UPDATE qa_ids SET status = 'New';'''
                 model.Session.execute(sql)
                 model.Session.commit()
                 self.log.info('qa update thread done. Reset %s Running ones on exit.' %
-                    (possible_stuck_running))
+                    result)
             else:
                 self.log.info('qa update thread done. All datasets completed.')
                 with open(log_last_full_run, 'w+') as f:
                     f.write(datetime.datetime.now().isoformat())
                     f.truncate()
+                from tasks import RemoteResource
+                RemoteResource.clear_url_blacklist()
 
             return
 

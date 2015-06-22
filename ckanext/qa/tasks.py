@@ -12,6 +12,7 @@ import datetime
 import requests
 import re
 import ckan.lib.celery_app as celery_app
+from ckan import model
 
 
 log = logging.getLogger('ckanext.qa')
@@ -356,10 +357,10 @@ class RemoteResource(object):
             except Exception, e:
                 return 408
 
-        blacklist_errno = check_url_blacklist(self.url)
+        blacklist_errno = self.check_url_blacklist(self.url)
         if blacklist_errno:
-            self.status_code = blacklist_errno
-            self.reason = ERRNO_BLOCK.get(blacklist_errno)
+            self.status_code = 500
+            self.reason = self.ERRNO_BLOCK.get(blacklist_errno)
             log.error('get_content_type blacklisted ( %s ): %s: %s ' % (
                     self.url, self.status_code, self.reason))
             return None
@@ -394,7 +395,7 @@ class RemoteResource(object):
             self.reason = ex.__class__.__name__
             log.error('get_content_type exception ( %s ): %s ' % (self.url, ex))
             errno = ex.args[0].reason.errno
-            if errno in ERRNO_BLOCK.keys():
+            if errno in self.ERRNO_BLOCK.keys():
                 self.add_url_blacklist(self.url, errno)
 
             return None
@@ -408,8 +409,8 @@ class RemoteResource(object):
         return self.status_code
 
     def add_url_blacklist(self, url, errno):
-        url_parts = get_url_parts(url)
-        url_parts.reverse() # so we deal with closest parent first
+        url_paths = self.get_url_paths(url)
+        url_paths.reverse() # so we deal with closest parent first
         sql_SELECT = '''
                 SELECT path
                 FROM resource_domain_blacklist
@@ -424,7 +425,7 @@ class RemoteResource(object):
                 INSERT INTO resource_domain_blacklist(path, count, errno)
                 VALUES (:path, 1, :errno);
         '''
-        for part in url_parts:
+        for path in url_paths:
             q = model.Session.execute(sql_SELECT, {'path': path})
             rowcount = q.rowcount
             if rowcount:
@@ -439,18 +440,26 @@ class RemoteResource(object):
                 model.Session.commit()
 
     def delete_url_blacklist(self, url):
-        url_parts = get_url_parts(url)
+        url_paths = self.get_url_paths(url)
         sql_DELETE = '''
                 DELETE FROM resource_domain_blacklist
                 WHERE path = :path;
         '''
-        for part in url_parts:
+        for path in url_paths:
             q = model.Session.execute(sql_DELETE, {'path': path})
             model.Session.commit()
 
+    @staticmethod
+    def clear_url_blacklist():
+        sql_CLEAR = '''
+                DELETE FROM resource_domain_blacklist;
+        '''
+        q = model.Session.execute(sql_CLEAR)
+        model.Session.commit()
+
     def check_url_blacklist(self, url):
         errno = None
-        url_parts = get_url_parts(url)
+        url_paths = self.get_url_paths(url)
         sql_CHECK = '''
                 SELECT errno
                 FROM resource_domain_blacklist
@@ -458,31 +467,32 @@ class RemoteResource(object):
                 AND count >= :count
                 LIMIT 1;
         '''
-        for part in url_parts:
+        for path in url_paths:
             q = model.Session.execute(sql_CHECK, {
                     'path': path,
-                    'count': BLOCK_THRESHOLD,
+                    'count': self.BLOCK_THRESHOLD,
             })
             if q.rowcount:
                 errno = q.fetchone()[0]
+                break
 
         return errno
 
-    def get_url_parts(self, url):
+    def get_url_paths(self, url):
         from urlparse import urlparse
-        url_parts = []
+        url_paths = []
 
         o = urlparse(url)
         if not o.scheme and not o.netloc:
-            return url_parts
+            return url_paths
 
-        current_part = o.scheme + '://' + o.netloc.lower()
-        url_parts.append(current_part)
+        current_path = o.scheme + '://' + o.netloc.lower()
+        url_paths.append(current_path)
         paths = o.path.split('/')
         for path in paths:
             if path:
-                current_part = current_part + '/' + path
-                url_parts.append(current_part)
+                current_path = current_path + '/' + path
+                url_paths.append(current_path)
 
-        return url_parts
+        return url_paths
 
