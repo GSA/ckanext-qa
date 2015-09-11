@@ -349,9 +349,11 @@ class RemoteResource(object):
 
             try:
                 answer = urllib2.urlopen(req, timeout=20)
-                self.content_type = answer.headers.get('content-type')
                 self.status_code = 200
-                return self.content_type
+                return
+            except urllib2.URLError, e:
+                self.status_code = 500
+                return None
             except urllib2.HTTPError, e:
                 return e.code
             except Exception, e:
