@@ -345,19 +345,29 @@ class RemoteResource(object):
             return self.content_type
 
         if 'ftp://' in self.url:
-            req = urllib2.Request(self.url)
-
             try:
-                answer = urllib2.urlopen(req, timeout=20)
+                # TODO break it up and code for each type of exceptions
+                from urlparse import urlparse
+                import ftplib
+                o = urlparse(self.url)
+
+                ftp_timeout = 20 # in seconds
+                ftp_server = o.hostname
+                ftp_user = 'anonymous' if not o.username else o.username
+                ftp_pass = 'anonymous@' if not o.username else o.password
+                ftp_port = 21 if not o.port else o.port
+                ftp_filepath = o.path
+
+                ftp = ftplib.FTP()
+                ftp.connect(ftp_server, port=ftp_port, timeout=ftp_timeout)
+                ftp.login(ftp_user, ftp_pass)
+                if ftp_filepath.strip('/'):
+                    assert ftp.nlst(ftp_filepath)
                 self.status_code = 200
                 return
-            except urllib2.URLError, e:
-                self.status_code = 500
-                return None
-            except urllib2.HTTPError, e:
-                return e.code
             except Exception, e:
-                return 408
+                self.status_code = 408
+                return
 
         blacklist_errno = self.check_url_blacklist(self.url)
         if blacklist_errno:
