@@ -28,6 +28,11 @@ class QACommand(p.toolkit.CkanCommand):
            - QA analysis on all resources in a given dataset, or on all
            datasets if no dataset given
 
+        paster qa update_sel
+           - QA analysis on all datasets whose last modified timestamp 
+           is >= than the timestamp from 
+           `log_last_modified = '/var/log/qa-metadata-modified.log'` 
+
         paster qa clean
             - Remove all package score information
 
