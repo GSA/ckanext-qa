@@ -188,7 +188,16 @@ class QACommand(p.toolkit.CkanCommand):
              if len(self.args) > 1:
                self.update_resource_rating()
                return
-        
+
+             # create log_last_modified file if the command is being run for the first time
+             if not os.path.isfile(log_last_modified):
+               try:
+                 f = open(log_last_modified, 'w')
+                 f.write('1970-01-01T00:00:00.000Z')
+                 f.close()
+               except IOError as e:
+                 print "I/O error({0}): {1}".format(e.errno, e.strerror)
+
              if os.path.isfile(log_last_modified) and os.stat(log_last_modified).st_size > 1:
                 with open(log_last_modified, 'r') as f:
                   for line in f:
