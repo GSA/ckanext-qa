@@ -7,6 +7,8 @@ import ckan.lib.dictization.model_dictize as model_dictize
 import ckan.model as model
 import ckan.plugins as p
 import ckan.lib.celery_app as celery_app
+import sys
+import ckanext.qa.model as qamodel
 
 resource_dictize = model_dictize.resource_dictize
 send_task = celery_app.celery.send_task
@@ -20,9 +22,11 @@ class QAPlugin(p.SingletonPlugin):
     p.implements(p.IDomainObjectModification, inherit=True)
     p.implements(p.IResourceUrlChange)
     p.implements(p.ITemplateHelpers)
+    p.implements(p.IPluginObserver)
 
     def configure(self, config):
         self.site_url = config.get('ckan.site_url')
+        qamodel.setup()
 
     def update_config(self, config):
         # check if new templates

@@ -17,7 +17,7 @@ REQUESTS_HEADER = {'content-type': 'application/json'}
 class CkanApiError(Exception):
     pass
 
-
+# @TODO: use ORM + sqlalchemy to work with the db
 class QACommand(p.toolkit.CkanCommand):
     """
     QA analysis of CKAN resources
