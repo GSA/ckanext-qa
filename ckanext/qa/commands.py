@@ -117,7 +117,7 @@ class QACommand(p.toolkit.CkanCommand):
                 for j in range(0, len(results)):
                     if not metadata_modified_start:
                         metadata_modified_start = results[j]['metadata_modified']
-                    sql = '''INSERT INTO qa_ids (id, pkg_id) VALUES (DEFAULT, :pkg_id, 'New');'''
+                    sql = '''INSERT INTO qa_ids (id, pkg_id, status) VALUES (DEFAULT, :pkg_id, 'New');'''
                     model.Session.execute(sql, {'pkg_id' : results[j]['id']})
                 model.Session.commit()
 
