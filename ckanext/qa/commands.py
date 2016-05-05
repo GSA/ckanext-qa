@@ -10,6 +10,7 @@ import os.path
 
 import ckan.plugins as p
 from ckan import model
+from ckanext.qa.model import QaSystemInfo
 
 
 REQUESTS_HEADER = {'content-type': 'application/json'}
@@ -30,8 +31,7 @@ class QACommand(p.toolkit.CkanCommand):
 
         paster qa update_sel
            - QA analysis on all datasets whose last modified timestamp 
-           is >= than the timestamp from 
-           `log_last_modified = '/var/log/qa-metadata-modified.log'` 
+           is >= than the last_done_record 
 
         paster qa clean
             - Remove all package score information
@@ -62,27 +62,22 @@ class QACommand(p.toolkit.CkanCommand):
         # won't get disabled
         self.log = logging.getLogger('ckanext.qa')
 
-        log_last_modified = '/var/log/qa-metadata-modified.log'
-        log_last_full_run = '/var/log/qa-last-full-run.log'
+        last_done_record = get_qa_system_info('last_done_record')
+        last_full_run = get_qa_system_info('last_full_run')
 
         if cmd == 'collect-ids':
 
-            # quit if log_last_full_run is with 30 days
-            last_run = None
-            if os.path.isfile(log_last_full_run):
-                with open(log_last_full_run, 'r') as f:
-                    last_run = f.readline()
-
-            if last_run:
+            # quit if last_full_run is with 30 days
+            if last_full_run:
                 import dateutil.parser
                 try:
-                    last_run_timestamp = dateutil.parser.parse(last_run)
+                    last_run_timestamp = dateutil.parser.parse(last_full_run)
                 except ValueError:
                     pass
                 else:
                     diff = datetime.datetime.now() - last_run_timestamp
                     if diff.days < 30:
-                        raise Exception('Last qa full update was run %s days ago' % diff.days)
+                        self.log.info('Last qa full update was run %s days ago. Skipped.' % diff.days)
                         return
 
             url = config.get('solr_url') + "/select?q=metadata_modified:[2012-01-01T00:00:000Z%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=id,metadata_modified"
@@ -128,17 +123,9 @@ class QACommand(p.toolkit.CkanCommand):
 
                 start = start + chunk_size
 
-            if os.path.isfile(log_last_modified):
-                with open(log_last_modified, 'r+') as f:
-                    current = f.readline()
-                    if metadata_modified_end > current:
-                        f.seek(0)
-                        f.write(metadata_modified_end)
-                        f.truncate()
-            else:
-                with open(log_last_modified, 'w+') as f:
-                    f.write(metadata_modified_end)
-                    f.truncate()
+            if not last_done_record or \
+                    metadata_modified_end > last_done_record:
+                set_qa_system_info('last_done_record', metadata_modified_end)
 
             return
 
@@ -180,9 +167,8 @@ class QACommand(p.toolkit.CkanCommand):
                     result)
             else:
                 self.log.info('qa update thread done. All datasets completed.')
-                with open(log_last_full_run, 'w+') as f:
-                    f.write(datetime.datetime.now().isoformat())
-                    f.truncate()
+                set_qa_system_info('last_full_run',
+                        datetime.datetime.now().isoformat())
                 from tasks import RemoteResource
                 RemoteResource.clear_url_blacklist()
 
@@ -190,73 +176,60 @@ class QACommand(p.toolkit.CkanCommand):
 
         elif cmd == 'update_sel':
         
-             if len(self.args) > 1:
+            if len(self.args) > 1:
                self.update_resource_rating()
                return
 
-             # create log_last_modified file if the command is being run for the first time
-             if not os.path.isfile(log_last_modified):
-               try:
-                 f = open(log_last_modified, 'w')
-                 f.write('1970-01-01T00:00:00.000Z')
-                 f.close()
-               except IOError as e:
-                 print "I/O error({0}): {1}".format(e.errno, e.strerror)
+            # create last_done_record for the first time
+            if not last_done_record:
+                last_done_record = '1970-01-01T00:00:00.000Z'
+                set_qa_system_info('last_done_record', last_done_record)
 
-             if os.path.isfile(log_last_modified) and os.stat(log_last_modified).st_size > 1:
-                with open(log_last_modified, 'r') as f:
-                  for line in f:
-                     line = line.replace('\n', '')
-                     if not 'Z' in line:
-                         last_updated = line + 'Z'
-                     else:
-                         last_updated = line 
-                f.close()
+            last_updated = last_done_record.replace('\n', '')
+            if not 'Z' in last_updated:
+                last_updated = last_updated + 'Z'
+
+            print "Last Updated from file: " + last_updated
+
+            url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
+
+            response = self.get_data(url)
             
-                print "Last Updated from file: " + last_updated
-            
-                url = config.get('solr_url') + "/select?q=metadata_modified:[" + last_updated + "%20TO%20NOW]&sort=metadata_modified+asc%2C+id+asc&wt=json&indent=true&fl=name,metadata_modified"
+            if (response != 'error'):
+                f = response.read()
+                data = json.loads(f)
+                rows = int(data.get('response').get('numFound'))
 
-                response = self.get_data(url)
-                
-                if (response != 'error'):
-                   f = response.read()
-                   data = json.loads(f)
-                   rows = int(data.get('response').get('numFound'))
+                chunk_size = 1000
 
-                   chunk_size = 1000
-                
-                   counter = 0
-                   start = 0
-                   
-                   for x in range(0, int(math.ceil(rows/chunk_size))+1):                      
+                counter = 0
+                start = 0
 
-                      print url + "&rows=" + str(chunk_size) + "&start=" + str(start)
-                      response = self.get_data(url + "&rows=" + str(chunk_size) + "&start=" + str(start))
-                      f = response.read()
-                      data = json.loads(f)
-                      results = data.get('response').get('docs')
+                for x in range(0, int(math.ceil(rows/chunk_size))+1):
 
-                      for j in range(0, len(results)):
+                    print url + "&rows=" + str(chunk_size) + "&start=" + str(start)
+                    response = self.get_data(url + "&rows=" + str(chunk_size) + "&start=" + str(start))
+                    f = response.read()
+                    data = json.loads(f)
+                    results = data.get('response').get('docs')
+
+                    for j in range(0, len(results)):
                         print "Currently scanning dataset: " +  results[j]['name'] + " with modified date: " + results[j]['metadata_modified']
-                
+
                         if results[j]['metadata_modified'] != None:
-                            fo = open(log_last_modified, "wb")
-                            fo.write( str(results[j]['metadata_modified']).strip() )
-                            fo.close()
-                  
+                            set_qa_system_info('last_done_record',
+                                  str(results[j]['metadata_modified']).strip()
+                            )
+
                         self.args.append(results[j]['name'])
                         self.update_resource_rating()
                         self.args.pop()
                         
                         counter = int(counter) + 1
-                    
-                   start = int(start) + len(results)
                 
-                print "All Dataset scanned for selective QA update!!"
+                start = int(start) + len(results)
                 
-             else:
-               print "File for selective update is missing. Run QA update cron first."
+            print "All Dataset scanned for selective QA update!!"
                
         elif cmd == 'clean':
             self.log.error('Command "%s" not implemented' % (cmd,))
@@ -386,3 +359,28 @@ class QACommand(p.toolkit.CkanCommand):
                     continue
 
                 chunk = response.get('result').get('results')
+
+def get_qa_system_info(key):
+    ''' save data in the qa_system_info table '''
+
+    ret = None
+    obj = model.Session.query(QaSystemInfo).filter_by(key=key).first()
+    if obj:
+        ret = obj.value
+
+    return ret
+
+
+def set_qa_system_info(key, value):
+    ''' save data in the qa_system_info table '''
+
+    obj = model.Session.query(QaSystemInfo).filter_by(key=key).first()
+
+    if obj:
+        obj.value = unicode(value)
+    else:
+        obj = QaSystemInfo()
+        obj.key = key
+        obj.value = value
+    model.Session.add(obj)
+    model.Session.commit()

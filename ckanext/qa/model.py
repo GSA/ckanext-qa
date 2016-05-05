@@ -8,6 +8,7 @@ log = logging.getLogger(__name__)
 
 qa_ids_table = None
 resource_domain_blacklist_table = None
+qa_system_info_table = None
 
 class QaIdsException(Exception):
     pass
@@ -19,6 +20,12 @@ class QaRDB(domain_object.DomainObject):
     pass
 
 class QaRDBException(Exception):
+    pass
+
+class QaSystemInfo(domain_object.DomainObject):
+    pass
+
+class QaSystemInfoException(Exception):
     pass
 
 def setup():
@@ -51,6 +58,20 @@ def setup():
     else:
         log.debug('resource_domain_blacklist table creation deferred')
 
+    # qa_system_info table
+    if qa_system_info_table is None:
+        define_apps_tables()
+        log.debug('qa_system_info table defined in memory')
+
+    if model.repo.are_tables_created():
+        if not qa_system_info_table.exists():
+            qa_system_info_table.create()
+            log.debug('qa_system_info table created')
+        else:
+            log.debug('qa_system_info table already exists')
+    else:
+        log.debug('qa_system_info table creation deferred')
+
 # qa_ids model definition
 qa_ids_table = Table('qa_ids', meta.metadata,
     Column('id', types.Integer(),  primary_key=True),
@@ -65,5 +86,14 @@ resource_domain_blacklist_table = Table('resource_domain_blacklist', meta.metada
     Column('errno', types.Integer(), nullable=False, default=u''),
 )
 
+# qa_system_info model definition
+qa_system_info_table = Table('qa_system_info', meta.metadata,
+    Column('id', types.Integer(),  primary_key=True),
+    Column('key', types.UnicodeText, nullable=False, default=u''),
+    Column('value', types.UnicodeText, nullable=False, default=u''),
+)
+
 meta.mapper(QaIds, qa_ids_table)
 meta.mapper(QaRDB, resource_domain_blacklist_table)
+meta.mapper(QaSystemInfo, qa_system_info_table)
+
