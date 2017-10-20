@@ -18,8 +18,6 @@ import ckan.lib.helpers as ckan_helpers
 from ckanext.qa.sniff_format import sniff_file_format
 from ckanext.qa import lib
 from ckanext.archiver.model import Archival, Status
-
-
 class QAError(Exception):
     pass
 
@@ -90,7 +88,6 @@ def update_package(ckan_ini_filepath, package_id):
         log.error('Exception occurred during QA update_package: %s: %s',
                   e.__class__.__name__,  unicode(e))
         raise
-
 
 def update_package_(package_id, log):
     from ckan import model
