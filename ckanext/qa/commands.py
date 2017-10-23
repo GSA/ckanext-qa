@@ -4,6 +4,8 @@ import sys
 from sqlalchemy import or_
 
 import ckan.plugins as p
+from ckan import model
+from ckanext.qa.model import QaSystemInfo
 
 REQUESTS_HEADER = {'content-type': 'application/json',
                    'User-Agent': 'ckanext-qa commands'}
@@ -12,7 +14,7 @@ REQUESTS_HEADER = {'content-type': 'application/json',
 class CkanApiError(Exception):
     pass
 
-
+# @TODO: use ORM + sqlalchemy to work with the db
 class QACommand(p.toolkit.CkanCommand):
     """
     QA analysis of CKAN resources
