@@ -57,8 +57,11 @@ def load_translations(lang):
     registry = Registry()
     registry.prepare()
 
+    class FakeTranslator:
+       def ugettext(*args):
+           return args[1]
     class FakePylons:
-            translator = None
+            translator = FakeTranslator()
     fakepylons = FakePylons()
     class FakeRequest:
         # Stores details of the translator
