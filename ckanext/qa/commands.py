@@ -5,7 +5,7 @@ from sqlalchemy import or_
 
 import ckan.plugins as p
 from ckan import model
-from ckanext.qa.model import QaSystemInfo
+#from ckanext.qa.model import QaSystemInfo
 
 REQUESTS_HEADER = {'content-type': 'application/json',
                    'User-Agent': 'ckanext-qa commands'}
