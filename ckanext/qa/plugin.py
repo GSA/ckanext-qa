@@ -61,8 +61,8 @@ class QAPlugin(p.SingletonPlugin, p.toolkit.DefaultDatasetForm):
     def register_reports(self):
         """Register details of an extension's reports"""
         from ckanext.qa import reports
-        return [reports.openness_report_info]
-
+        #return [reports.openness_report_info]
+        return []
     # IActions
 
     def get_actions(self):
